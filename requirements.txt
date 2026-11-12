@@ -2,3 +2,6 @@ numpy
 matplotlib
 scikit-learn
 jupyter
+torch
+mediapipe
+kagglehub
