@@ -11,8 +11,8 @@ I'm building it in 7 days, starting from a neural network written in plain NumPy
 | 1 | 2-layer neural net in NumPy with hand-written backprop | ✅ |
 | 2 | micrograd: my own autograd engine | ✅ |
 | 3 | micrograd MLP on MediaPipe hand landmarks (5 letters): **96.5% test accuracy** | ✅ |
-| 4 | PyTorch MLP on all letters + live webcam test | ⏳ |
-| 5 | Small CNN vs landmark MLP on my own hands | ⏳ |
+| 4 | PyTorch MLP on all letters + live webcam test | ✅ |
+| 5 | Real-world test on my own hands: landmark MLP 80% vs CNN 8% | ✅ |
 | 6 | Fine-tuned MobileNetV3 + confusion matrix | ⏳ |
 | 7 | Browser app (ONNX Runtime Web) + live demo | ⏳ |
 
@@ -81,6 +81,41 @@ I extended the engine with `exp`, `log`, `pow` and `relu` (subtraction and divis
 - MediaPipe found a hand in about 90% of early frames but far fewer late frames, which are darker.
 - Training took 13 minutes for 773 parameters, because every number is a separate Python object. Day 4 moves the same math to PyTorch matrices.
 - All test photos come from the same signer and room, so the real test is on my own hands (Day 5).
+## Day 5: Testing on my own hands
+
+Every test so far used the same signer and room as training. So I recorded 15 photos of each letter with my own webcam (`webcam/collect.py`), 360 in total, and used them only for testing.
+
+**Splits:** train on dataset frames 1–1600, validate on 1701–2000, test on 2401–3000, and a separate real-world test on my hands. Experiments were compared on validation only, with the keep/drop rules written down before seeing any results.
+
+### Landmark MLP experiments
+
+| Version | Val | Test | **My hands** |
+|---|---|---|---|
+| Baseline (Day 4 model) | 97.7% | 90.1% | 64.7% |
+| + dropout 0.3 | 97.4% | 91.2% | 65.8% |
+| + dropout + mirror augmentation | 96.9% | 89.6% | 77.8% |
+| + dropout + mirror + depth (z) | 95.1% | 87.5% | 76.9% |
+| **Final: baseline + mirror** | 96.6% | 88.5% | **80.0%** |
+
+- **Mirror augmentation** (flipping x so the model sees both hands) looked slightly worse on validation, which has only the dataset's signer, but added 15 points on my hands.
+- **Aspect-ratio bug:** MediaPipe normalizes x by image width and y by height. The dataset is square but my webcam is 16:9, which squeezed my hand shapes. Fixing it added 3 points.
+- **Depth (z)** didn't help: MediaPipe's single-camera depth estimate is too noisy.
+- **Bad labels:** my first recording scored 42.8% because I was signing several letters wrong. Re-recording carefully against reference photos gave 80.0% with the same model.
+- Still failing on my hands: D → P, G → L, K → V, and M → N (a depth difference).
+
+### Landmark MLP vs CNN on hand crops
+
+| Model | Val | Test | **My hands** | Parameters | CPU time per photo |
+|---|---|---|---|---|---|
+| **Landmark MLP** | 96.6% | 88.5% | **80.0%** | 15,320 | 0.06 ms |
+| Small CNN (64×64 crops) | 96.1% | 55.5% | **8.3%** | 291,000 | 10 ms |
+
+Both models scored 96% on validation, but the CNN collapsed on my hands, predicting "P" for almost everything. With one signer in one room, it learned the dataset's background and lighting instead of hand shape. Landmarks strip those shortcuts out, so the MLP generalizes: better accuracy, 19× smaller and 170× faster. **The browser app will use the landmark MLP.**
+
+| Hand crops the CNN saw | Dataset (top) vs me (bottom) |
+|---|---|
+| ![](images/day5_crops.png) | ![](images/day5_dataset_vs_me.png) |
+
 
 ## What I've learned so far
 - Without a non-linearity like ReLU, stacked linear layers collapse into one linear layer.
