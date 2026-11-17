@@ -57,6 +57,16 @@ let landmarker = null, recent = [], text = "";
 let holdLetter = null, holdCount = 0, lastAdded = null, noHand = 0;
 let lastVideoTime = -1, frames = 0, fpsT0 = performance.now();
 
+// ---------- speech: the browser's built-in text-to-speech ----------
+function say(words) {
+  if (!("speechSynthesis" in window) || !words.trim()) return;
+  window.speechSynthesis.cancel();
+  // one letter: say its name ("A" = "ay"); a word: lowercase so it's read as a word, not spelled
+  const u = new SpeechSynthesisUtterance(words.trim().length === 1 ? words : words.toLowerCase());
+  u.rate = 0.9;
+  window.speechSynthesis.speak(u);
+}
+
 function renderText() {
   $("text").textContent = text || " ";
 }
@@ -96,6 +106,7 @@ function showPrediction(avg) {
     text += letter;
     lastAdded = letter;
     renderText();
+    if ($("sayLetters").checked) say(letter);
   }
 }
 
@@ -184,7 +195,12 @@ async function start() {
 
 if (typeof document !== "undefined" && $("start")) {
   $("start").addEventListener("click", start);
-  $("space").addEventListener("click", () => { text += " "; lastAdded = null; renderText(); });
+  $("space").addEventListener("click", () => {
+    const lastWord = text.trim().split(" ").pop();
+    text += " "; lastAdded = null; renderText();
+    say(lastWord);                       // say the word you just finished
+  });
+  $("speak").addEventListener("click", () => say(text));
   $("back").addEventListener("click", () => { text = text.slice(0, -1); lastAdded = null; renderText(); });
   $("clear").addEventListener("click", () => { text = ""; lastAdded = null; renderText(); });
   renderText();
